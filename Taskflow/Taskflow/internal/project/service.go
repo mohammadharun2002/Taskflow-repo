@@ -1,16 +1,17 @@
 package project
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"time"
 )
 
 type Repository interface {
-	Create(project Project) (Project, error)
-	FindAll() []Project
-	FindByID(id int64) (Project, bool)
-	Delete(id int64) bool
+	Create(ctx context.Context, project Project) (Project, error)
+	FindAll(ctx context.Context) ([]Project, error)
+	FindByID(ctx context.Context, id int64) (Project, error)
+	Delete(ctx context.Context, id int64) error
 }
 
 type Service struct {
@@ -26,7 +27,7 @@ func NewService(repo Repository) *Service {
 	}
 }
 
-func (s *Service) Create(request CreateRequest) (Project, error) {
+func (s *Service) Create(ctx context.Context, request CreateRequest) (Project, error) {
 	name := strings.TrimSpace(request.Name)
 
 	if name == "" {
@@ -42,25 +43,17 @@ func (s *Service) Create(request CreateRequest) (Project, error) {
 		UpdatedAt:   now,
 	}
 
-	return s.repo.Create(project)
+	return s.repo.Create(ctx, project)
 }
 
-func (s *Service) FindAll() []Project {
-	return s.repo.FindAll()
+func (s *Service) FindAll(ctx context.Context) ([]Project, error) {
+	return s.repo.FindAll(ctx)
 }
 
-func (s *Service) FindByID(id int64) (Project, error) {
-	project, found := s.repo.FindByID(id)
-	if !found {
-		return Project{}, ErrNotFound
-	}
-	return project, nil
+func (s *Service) FindByID(ctx context.Context, id int64) (Project, error) {
+	return s.repo.FindByID(ctx, id)
 }
 
-func (s *Service) Delete(id int64) error {
-	deleted := s.repo.Delete(id)
-	if !deleted {
-		return ErrNotFound
-	}
-	return nil
+func (s *Service) Delete(ctx context.Context, id int64) error {
+	return s.repo.Delete(ctx, id)
 }

@@ -33,7 +33,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	createdProject, err := h.service.Create(request)
+	createdProject, err := h.service.Create(r.Context(), request)
 	if errors.Is(err, ErrNameRequired) {
 		if writeErr := response.WriteError(
 			w,
@@ -66,8 +66,25 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) FindAll(w http.ResponseWriter, r *http.Request) {
-	projects := h.service.FindAll()
-	if err := response.WriteJSON(w, http.StatusOK, projects); err != nil {
+	projects, err := h.service.FindAll(r.Context())
+	if err != nil {
+		log.Printf("failed to find projects: %v", err)
+
+		if writeErr := response.WriteError(
+			w,
+			http.StatusInternalServerError,
+			"internal server error",
+		); writeErr != nil {
+			log.Printf("failed to write error response: %v", writeErr)
+		}
+		return
+	}
+
+	if err := response.WriteJSON(
+		w,
+		http.StatusOK,
+		projects,
+	); err != nil {
 		log.Printf("failed to write projects response: %v", err)
 	}
 }
@@ -85,7 +102,7 @@ func (h *Handler) FindByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	foundProject, err := h.service.FindByID(id)
+	foundProject, err := h.service.FindByID(r.Context(), id)
 	if errors.Is(err, ErrNotFound) {
 		if writeErr := response.WriteError(
 			w,
@@ -132,7 +149,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.service.Delete(id)
+	err = h.service.Delete(r.Context(), id)
 	if errors.Is(err, ErrNotFound) {
 		if writeErr := response.WriteError(
 			w,

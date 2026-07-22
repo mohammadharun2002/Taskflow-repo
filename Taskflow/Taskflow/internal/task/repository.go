@@ -1,6 +1,9 @@
 package task
 
-import "sync"
+import (
+	"context"
+	"sync"
+)
 
 type MemoryRepository struct {
 	mu     sync.RWMutex
@@ -15,7 +18,11 @@ func NewMemoryRepository() *MemoryRepository {
 	}
 }
 
-func (r *MemoryRepository) Create(task Task) (Task, error) {
+func (r *MemoryRepository) Create(ctx context.Context, task Task) (Task, error) {
+	if err := ctx.Err(); err != nil {
+		return Task{}, err
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -26,7 +33,11 @@ func (r *MemoryRepository) Create(task Task) (Task, error) {
 	return task, nil
 }
 
-func (r *MemoryRepository) FindByProjectID(projectID int64) []Task {
+func (r *MemoryRepository) FindByProjectID(ctx context.Context, projectID int64) ([]Task, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -37,46 +48,57 @@ func (r *MemoryRepository) FindByProjectID(projectID int64) []Task {
 		}
 	}
 
-	return projectTasks
+	return projectTasks, nil
 }
 
-func (r *MemoryRepository) FindByID(id int64) (Task, bool) {
+func (r *MemoryRepository) FindByID(ctx context.Context, id int64) (Task, error) {
+	if err := ctx.Err(); err != nil {
+		return Task{}, err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	for _, task := range r.tasks {
 		if task.ID == id {
-			return task, true
+			return task, nil
 		}
 	}
 
-	return Task{}, false
+	return Task{}, ErrNotFound
 }
 
-func (r *MemoryRepository) Update(updatedTask Task) (Task, bool) {
+func (r *MemoryRepository) Update(ctx context.Context, updatedTask Task) (Task, error) {
+	if err := ctx.Err(); err != nil {
+		return Task{}, err
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	for index, task := range r.tasks {
 		if task.ID == updatedTask.ID {
 			r.tasks[index] = updatedTask
-			return updatedTask, true
+			return updatedTask, nil
 		}
 	}
 
-	return Task{}, false
+	return Task{}, ErrNotFound
 }
 
-func (r *MemoryRepository) Delete(id int64) bool {
+func (r *MemoryRepository) Delete(ctx context.Context, id int64) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	for index, task := range r.tasks {
 		if task.ID == id {
 			r.tasks = append(r.tasks[:index], r.tasks[index+1:]...)
-			return true
+			return nil
 		}
 	}
 
-	return false
+	return ErrNotFound
 }

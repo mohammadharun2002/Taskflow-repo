@@ -34,7 +34,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	createdTask, err := h.service.Create(projectID, request)
+	createdTask, err := h.service.Create(r.Context(), projectID, request)
 	if err != nil {
 		writeServiceError(w, err)
 		return
@@ -52,7 +52,7 @@ func (h *Handler) FindByProjectID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	projectTasks, err := h.service.FindByProjectID(projectID)
+	projectTasks, err := h.service.FindByProjectID(r.Context(), projectID)
 	if err != nil {
 		writeServiceError(w, err)
 		return
@@ -70,7 +70,7 @@ func (h *Handler) FindByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	foundTask, err := h.service.FindByID(taskID)
+	foundTask, err := h.service.FindByID(r.Context(), taskID)
 	if err != nil {
 		writeServiceError(w, err)
 		return
@@ -94,7 +94,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updatedTask, err := h.service.Update(taskID, request)
+	updatedTask, err := h.service.Update(r.Context(), taskID, request)
 	if err != nil {
 		writeServiceError(w, err)
 		return
@@ -112,7 +112,7 @@ func (h *Handler) AdvanceStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updatedTask, err := h.service.AdvanceStatus(taskID)
+	updatedTask, err := h.service.AdvanceStatus(r.Context(), taskID)
 	if err != nil {
 		writeServiceError(w, err)
 		return
@@ -130,7 +130,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.service.Delete(taskID); err != nil {
+	if err := h.service.Delete(r.Context(), taskID); err != nil {
 		writeServiceError(w, err)
 		return
 	}
@@ -185,7 +185,7 @@ func (h *Handler) GetProjectSummary(
 		return
 	}
 
-	summary, err := h.service.GetProjectSummary(projectID)
+	summary, err := h.service.GetProjectSummary(r.Context(), projectID)
 	if err != nil {
 		writeServiceError(w, err)
 		return

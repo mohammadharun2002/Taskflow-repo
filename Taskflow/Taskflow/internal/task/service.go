@@ -1,6 +1,7 @@
 package task
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"taskflow/internal/project"
@@ -8,15 +9,15 @@ import (
 )
 
 type ProjectFinder interface {
-	FindByID(id int64) (project.Project, error)
+	FindByID(ctx context.Context, id int64) (project.Project, error)
 }
 
 type Repository interface {
-	Create(task Task) (Task, error)
-	FindByProjectID(projectID int64) []Task
-	FindByID(id int64) (Task, bool)
-	Update(task Task) (Task, bool)
-	Delete(id int64) bool
+	Create(ctx context.Context, task Task) (Task, error)
+	FindByProjectID(ctx context.Context, projectID int64) ([]Task, error)
+	FindByID(ctx context.Context, id int64) (Task, error)
+	Update(ctx context.Context, task Task) (Task, error)
+	Delete(ctx context.Context, id int64) error
 }
 
 type Service struct {
@@ -40,10 +41,11 @@ var (
 )
 
 func (s *Service) Create(
+	ctx context.Context,
 	projectID int64,
 	request CreateRequest,
 ) (Task, error) {
-	_, err := s.projects.FindByID(projectID)
+	_, err := s.projects.FindByID(ctx, projectID)
 	if errors.Is(err, project.ErrNotFound) {
 		return Task{}, ErrProjectNotFound
 	}
@@ -80,11 +82,11 @@ func (s *Service) Create(
 		UpdatedAt:   now,
 	}
 
-	return s.repo.Create(task)
+	return s.repo.Create(ctx, task)
 }
 
-func (s *Service) FindByProjectID(projectID int64) ([]Task, error) {
-	_, err := s.projects.FindByID(projectID)
+func (s *Service) FindByProjectID(ctx context.Context, projectID int64) ([]Task, error) {
+	_, err := s.projects.FindByID(ctx, projectID)
 	if errors.Is(err, project.ErrNotFound) {
 		return nil, ErrProjectNotFound
 	}
@@ -92,23 +94,19 @@ func (s *Service) FindByProjectID(projectID int64) ([]Task, error) {
 		return nil, err
 	}
 
-	return s.repo.FindByProjectID(projectID), nil
+	return s.repo.FindByProjectID(ctx, projectID)
 }
 
-func (s *Service) FindByID(id int64) (Task, error) {
-	task, found := s.repo.FindByID(id)
-	if !found {
-		return Task{}, ErrNotFound
-	}
-
-	return task, nil
+func (s *Service) FindByID(ctx context.Context, id int64) (Task, error) {
+	return s.repo.FindByID(ctx, id)
 }
 
 func (s *Service) Update(
+	ctx context.Context,
 	id int64,
 	request CreateRequest,
 ) (Task, error) {
-	existingTask, err := s.FindByID(id)
+	existingTask, err := s.FindByID(ctx, id)
 	if err != nil {
 		return Task{}, err
 	}
@@ -131,16 +129,12 @@ func (s *Service) Update(
 	existingTask.DueDate = request.DueDate
 	existingTask.UpdatedAt = time.Now()
 
-	updatedTask, updated := s.repo.Update(existingTask)
-	if !updated {
-		return Task{}, ErrNotFound
-	}
+	return s.repo.Update(ctx, existingTask)
 
-	return updatedTask, nil
 }
 
-func (s *Service) AdvanceStatus(id int64) (Task, error) {
-	existingTask, err := s.FindByID(id)
+func (s *Service) AdvanceStatus(ctx context.Context, id int64) (Task, error) {
+	existingTask, err := s.FindByID(ctx, id)
 	if err != nil {
 		return Task{}, err
 	}
@@ -161,27 +155,19 @@ func (s *Service) AdvanceStatus(id int64) (Task, error) {
 
 	existingTask.UpdatedAt = time.Now()
 
-	updatedTask, updated := s.repo.Update(existingTask)
-	if !updated {
-		return Task{}, ErrNotFound
-	}
+	return s.repo.Update(ctx, existingTask)
 
-	return updatedTask, nil
 }
 
-func (s *Service) Delete(id int64) error {
-	deleted := s.repo.Delete(id)
-	if !deleted {
-		return ErrNotFound
-	}
-
-	return nil
+func (s *Service) Delete(ctx context.Context, id int64) error {
+	return s.repo.Delete(ctx, id)
 }
 
 func (s *Service) GetProjectSummary(
+	ctx context.Context,
 	projectID int64,
 ) (ProjectSummary, error) {
-	projectTasks, err := s.FindByProjectID(projectID)
+	projectTasks, err := s.FindByProjectID(ctx, projectID)
 	if err != nil {
 		return ProjectSummary{}, err
 	}
