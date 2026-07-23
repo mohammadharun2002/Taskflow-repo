@@ -20,6 +20,7 @@ type Service struct {
 
 var ErrNameRequired = errors.New("project name is required")
 var ErrNotFound = errors.New("project not found")
+var ErrHasTasks = errors.New("project has existing tasks")
 
 func NewService(repo Repository) *Service {
 	return &Service{

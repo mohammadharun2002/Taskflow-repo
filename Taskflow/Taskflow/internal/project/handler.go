@@ -149,27 +149,28 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.service.Delete(r.Context(), id)
-	if errors.Is(err, ErrNotFound) {
-		if writeErr := response.WriteError(
-			w,
-			http.StatusNotFound,
-			err.Error(),
-		); writeErr != nil {
-			log.Printf("failed to write error response: %v", writeErr)
-		}
-		return
-	}
+	if err = h.service.Delete(r.Context(), id); err != nil {
+		switch {
+		case errors.Is(err, ErrNotFound):
+			response.WriteError(
+				w,
+				http.StatusNotFound,
+				err.Error(),
+			)
+		case errors.Is(err, ErrHasTasks):
+			response.WriteError(
+				w,
+				http.StatusConflict,
+				err.Error(),
+			)
 
-	if err != nil {
-		log.Printf("failed to delete project: %v", err)
-
-		if writeErr := response.WriteError(
-			w,
-			http.StatusInternalServerError,
-			"internal server error",
-		); writeErr != nil {
-			log.Printf("failed to write error response: %v", writeErr)
+		default:
+			log.Printf("failed to delete project: %v", err)
+			response.WriteError(
+				w,
+				http.StatusInternalServerError,
+				"internal server error",
+			)
 		}
 		return
 	}

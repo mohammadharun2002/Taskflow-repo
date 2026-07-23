@@ -1,27 +1,61 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
+	"os"
 
+	"taskflow/internal/auth"
+	"taskflow/internal/database"
 	"taskflow/internal/health"
 	"taskflow/internal/project"
 	"taskflow/internal/task"
+
+	"github.com/joho/godotenv"
 )
 
 func main() {
-	projectRepository := project.NewMemoryRepository()
+
+	if err := godotenv.Load(); err != nil {
+		log.Println(".env file not found; using system environment variables")
+	}
+
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		log.Fatal("DATABASE URL IS REQUORED")
+	}
+
+	db, err := database.Open(context.Background(), databaseURL)
+	if err != nil {
+		log.Fatalf("failed to connect to database: %v", err)
+	}
+	defer db.Close()
+	log.Println("connected to postgresql")
+
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		log.Fatal("JWT_SECRET is required")
+	}
+
+	authRepository := auth.NewPostgresRepository(db)
+	authService := auth.NewService(authRepository, jwtSecret)
+	authHandler := auth.NewHandler(authService)
+
+	projectRepository := project.NewPostgresRepository(db)
 	projectService := project.NewService(projectRepository)
 	projectHandler := project.NewHandler(projectService)
 
-	taskRepository := task.NewMemoryRepository()
+	taskRepository := task.NewPostgresRepository(db)
 	taskService := task.NewService(taskRepository, projectService)
 	taskHandler := task.NewHandler(taskService)
 
 	router := http.NewServeMux()
 
-	router.HandleFunc("GET /healthz", health.HealthCheck)
-	router.HandleFunc("GET /readyz", health.ReadinessCheck)
+	healthHandler := health.NewHandler(db)
+
+	router.HandleFunc("GET /healthz", healthHandler.HealthCheck)
+	router.HandleFunc("GET /readyz", healthHandler.ReadinessCheck)
 
 	router.HandleFunc(
 		"POST /api/v1/projects",
@@ -68,6 +102,16 @@ func main() {
 	router.HandleFunc(
 		"GET /api/v1/projects/{id}/summary",
 		taskHandler.GetProjectSummary,
+	)
+
+	router.HandleFunc(
+		"POST /api/v1/auth/register",
+		authHandler.Register,
+	)
+
+	router.HandleFunc(
+		"POST /api/v1/auth/login",
+		authHandler.Login,
 	)
 
 	log.Println("TaskFlow API is running on :8080")

@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: taskflow_dev_password
       POSTGRES_DB: taskflow
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - taskflow_postgres_data:/var/lib/postgresql
     healthcheck:
