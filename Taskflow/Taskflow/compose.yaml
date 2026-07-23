@@ -11,10 +11,57 @@ services:
     volumes:
       - taskflow_postgres_data:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U taskflow -d taskflow"]
+      test:
+        - CMD-SHELL
+        - pg_isready -U taskflow -d taskflow
       interval: 5s
       timeout: 5s
       retries: 5
       start_period: "5s"
+    restart: unless-stopped
+
+  migrate:
+    image: migrate/migrate:v4.19.1
+    command:
+      - "-path=/migrations"
+      - "-database=postgres://taskflow:taskflow_dev_password@postgres:5432/taskflow?sslmode=disable"
+      - "up"
+    volumes:
+      - ./migrations:/migrations:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: taskflow-api
+    container_name: taskflow-api
+    environment:
+      DATABASE_URL: postgres://taskflow:taskflow_dev_password@postgres:5432/taskflow?sslmode=disable
+      JWT_SECRET: ${JWT_SECRET}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - "--quiet"
+        - "--tries=1"
+        - "--spider"
+        - http://localhost:8080/healthz
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: "5s"
+    restart: unless-stopped
+
 volumes:
   taskflow_postgres_data:

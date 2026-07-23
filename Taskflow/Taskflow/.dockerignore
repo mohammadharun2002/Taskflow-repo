@@ -1,0 +1,10 @@
+.git
+.gitignore
+.env
+.agents
+.vscode
+.idea
+*.log
+bin
+tmp
+coverage.out

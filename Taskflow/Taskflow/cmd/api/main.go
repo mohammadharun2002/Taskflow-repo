@@ -16,30 +16,39 @@ import (
 )
 
 func main() {
-
 	if err := godotenv.Load(); err != nil {
 		log.Println(".env file not found; using system environment variables")
 	}
 
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
-		log.Fatal("DATABASE URL IS REQUORED")
+		log.Fatal("DATABASE_URL is required")
 	}
-
-	db, err := database.Open(context.Background(), databaseURL)
-	if err != nil {
-		log.Fatalf("failed to connect to database: %v", err)
-	}
-	defer db.Close()
-	log.Println("connected to postgresql")
 
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
 		log.Fatal("JWT_SECRET is required")
 	}
 
+	db, err := database.Open(
+		context.Background(),
+		databaseURL,
+	)
+	if err != nil {
+		log.Fatalf(
+			"failed to connect to database: %v",
+			err,
+		)
+	}
+	defer db.Close()
+
+	log.Println("connected to postgresql")
+
 	authRepository := auth.NewPostgresRepository(db)
-	authService := auth.NewService(authRepository, jwtSecret)
+	authService := auth.NewService(
+		authRepository,
+		jwtSecret,
+	)
 	authHandler := auth.NewHandler(authService)
 
 	projectRepository := project.NewPostgresRepository(db)
@@ -47,76 +56,114 @@ func main() {
 	projectHandler := project.NewHandler(projectService)
 
 	taskRepository := task.NewPostgresRepository(db)
-	taskService := task.NewService(taskRepository, projectService)
+	taskService := task.NewService(
+		taskRepository,
+		projectService,
+	)
 	taskHandler := task.NewHandler(taskService)
-
-	router := http.NewServeMux()
 
 	healthHandler := health.NewHandler(db)
 
-	router.HandleFunc("GET /healthz", healthHandler.HealthCheck)
-	router.HandleFunc("GET /readyz", healthHandler.ReadinessCheck)
+	router := http.NewServeMux()
 
+	// Public health endpoints.
 	router.HandleFunc(
-		"POST /api/v1/projects",
-		projectHandler.Create,
+		"GET /healthz",
+		healthHandler.HealthCheck,
 	)
 	router.HandleFunc(
-		"GET /api/v1/projects",
-		projectHandler.FindAll,
-	)
-	router.HandleFunc(
-		"GET /api/v1/projects/{id}",
-		projectHandler.FindByID,
-	)
-	router.HandleFunc(
-		"DELETE /api/v1/projects/{id}",
-		projectHandler.Delete,
+		"GET /readyz",
+		healthHandler.ReadinessCheck,
 	)
 
-	router.HandleFunc(
-		"POST /api/v1/projects/{projectID}/tasks",
-		taskHandler.Create,
-	)
-	router.HandleFunc(
-		"GET /api/v1/projects/{projectID}/tasks",
-		taskHandler.FindByProjectID,
-	)
-	router.HandleFunc(
-		"GET /api/v1/tasks/{id}",
-		taskHandler.FindByID,
-	)
-	router.HandleFunc(
-		"PUT /api/v1/tasks/{id}",
-		taskHandler.Update,
-	)
-	router.HandleFunc(
-		"PATCH /api/v1/tasks/{id}/status",
-		taskHandler.AdvanceStatus,
-	)
-	router.HandleFunc(
-		"DELETE /api/v1/tasks/{id}",
-		taskHandler.Delete,
-	)
-
-	router.HandleFunc(
-		"GET /api/v1/projects/{id}/summary",
-		taskHandler.GetProjectSummary,
-	)
-
+	// Public authentication endpoints.
 	router.HandleFunc(
 		"POST /api/v1/auth/register",
 		authHandler.Register,
 	)
-
 	router.HandleFunc(
 		"POST /api/v1/auth/login",
 		authHandler.Login,
 	)
 
+	// Protected project endpoints.
+	router.Handle(
+		"POST /api/v1/projects",
+		authService.RequireAuth(
+			http.HandlerFunc(projectHandler.Create),
+		),
+	)
+	router.Handle(
+		"GET /api/v1/projects",
+		authService.RequireAuth(
+			http.HandlerFunc(projectHandler.FindAll),
+		),
+	)
+	router.Handle(
+		"GET /api/v1/projects/{id}",
+		authService.RequireAuth(
+			http.HandlerFunc(projectHandler.FindByID),
+		),
+	)
+	router.Handle(
+		"DELETE /api/v1/projects/{id}",
+		authService.RequireAuth(
+			http.HandlerFunc(projectHandler.Delete),
+		),
+	)
+
+	// Protected task endpoints.
+	router.Handle(
+		"POST /api/v1/projects/{projectID}/tasks",
+		authService.RequireAuth(
+			http.HandlerFunc(taskHandler.Create),
+		),
+	)
+	router.Handle(
+		"GET /api/v1/projects/{projectID}/tasks",
+		authService.RequireAuth(
+			http.HandlerFunc(taskHandler.FindByProjectID),
+		),
+	)
+	router.Handle(
+		"GET /api/v1/tasks/{id}",
+		authService.RequireAuth(
+			http.HandlerFunc(taskHandler.FindByID),
+		),
+	)
+	router.Handle(
+		"PUT /api/v1/tasks/{id}",
+		authService.RequireAuth(
+			http.HandlerFunc(taskHandler.Update),
+		),
+	)
+	router.Handle(
+		"PATCH /api/v1/tasks/{id}/status",
+		authService.RequireAuth(
+			http.HandlerFunc(taskHandler.AdvanceStatus),
+		),
+	)
+	router.Handle(
+		"DELETE /api/v1/tasks/{id}",
+		authService.RequireAuth(
+			http.HandlerFunc(taskHandler.Delete),
+		),
+	)
+
+	// Protected project summary endpoint.
+	router.Handle(
+		"GET /api/v1/projects/{id}/summary",
+		authService.RequireAuth(
+			http.HandlerFunc(taskHandler.GetProjectSummary),
+		),
+	)
+
 	log.Println("TaskFlow API is running on :8080")
 
-	if err := http.ListenAndServe(":8080", router); err != nil {
+	if err := http.ListenAndServe(
+		":8080",
+		router,
+	); err != nil {
 		log.Fatal(err)
 	}
 }

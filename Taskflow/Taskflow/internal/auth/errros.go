@@ -10,4 +10,5 @@ var (
 	ErrInvalidEmail       = errors.New("invalid email address")
 	ErrPasswordTooShort   = errors.New("password must contain at least 8 characters")
 	ErrInvalidCredentials = errors.New("invalid email or password")
+	ErrInvalidToken       = errors.New("invalid or expired token")
 )
